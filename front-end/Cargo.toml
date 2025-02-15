@@ -1,0 +1,20 @@
+[package]
+name = "front-end"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gloo-net = "0.6.0"
+log = "0.4.25"
+wasm-bindgen-futures = "0.4.50"
+wasm-logger = "0.2.0"
+yew = { version = "0.21.0", features = ["csr"] }
+yew-hooks = "0.3.3"
+
+[dependencies.web-sys]
+version = "0.3.77"
+features = [
+    "Document",
+    "Element",
+    "Request",
+]
