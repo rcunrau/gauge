@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+  <title>Tachometer</title>
+  <head>
+    <style>
+      body {
+          /* background-image: url("img/gettyimages-472321657-612x612.jpg"); */
+          background-image: url("img/pipes.jpg");
+          /* background-image: url("img/refinery.jpg"); */
+      }
+    </style>
+  </head>
+  <body>
+
+    <h2>Tachometer</h2>
+
+    <div>
+    <svg width="500" height="400" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <clipPath id="cut-bottom">
+          <rect x="0" y="0" width="500" height="200" />
+        </clipPath>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="black" />
+      </marker>  </defs>
+      <circle cx="250" cy="200" r="200" fill="red" clip-path="url(#cut-bottom)" />
+      <circle cx="250" cy="200" r="150" fill="yellow" clip-path="url(#cut-bottom)" />
+      <line id="line" x1="250" y1="200" x2="250" y2="60" stroke="black" stroke-width="5"
+            marker-end="url(#arrow)" clip-path="url(#cut-bottom)" />
+      Sorry, your browser does not support inline SVG.
+    </svg>
+  </div>
+
+  <script>
+    const numbox = document.getElementById("numbox");
+    const pointer = document.getElementById("line");
+    var iid = null;
+
+    var next = 1;
+    var dir = 1;
+
+    window.onload = function() {
+        clearInterval(iid);
+        iid = setInterval(pollServer, 200);
+    }
+
+    function pollServer() {
+        fetch('data/rpm', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+            },
+        })
+            .then(response => response.text())
+            .then(text => updateTach(text))
+    }
+
+    function pollNext() {
+        next = next + dir;
+        if (next >= 100) {
+            dir = -1;
+        }
+        else if (next <= 0) {
+            dir = 1;
+        }
+        updateTach(next);
+    }
+
+    function updateTach(text) {
+        var percent = Number(text)*1.0/100.0;
+        var [px, py] = plotPercent(percent);
+        pointer.setAttribute("x2", px);
+        pointer.setAttribute("y2", py);
+    }
+    
+    const RADIUS = 150.0;
+    const XORIGIN = 250.0;
+    const YORIGIN = 200.0;
+
+    function plotPercent(percent) {
+        var radians = percent*Math.PI;
+        var unitx = Math.cos(radians);
+        var unity = Math.sin(radians);
+
+        return [XORIGIN - unitx * RADIUS, YORIGIN - unity * RADIUS];
+    }
+        
+  </script>
+  </body>
+</html>
