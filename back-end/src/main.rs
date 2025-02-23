@@ -30,5 +30,6 @@ fn rpm() -> String {
 fn rocket() -> _ {
     rocket::build()
         .mount("/data", routes![rpm])
-        .mount("/", FileServer::from(relative!("static")))
+        .mount("/img", FileServer::from(relative!("img")).rank(2))
+        .mount("/", FileServer::from(relative!("dist")))
 }

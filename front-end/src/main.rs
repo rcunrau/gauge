@@ -1,42 +1,84 @@
-use yew::prelude::*;
-use gloo_net::http::Request;
-use yew_hooks::use_interval;
-use log::{info, warn};
-use std::f64::consts::PI;
+mod gauge;
 
-#[function_component(App)]
-fn app() -> Html {
+use gloo_net::http::Request;
+use stylist::yew::{styled_component, Global};
+use yew::prelude::*;
+use wasm_bindgen::prelude::*;
+use yew_hooks::use_interval;
+
+use log::{info, warn};
+
+use gauge::{new_gauge, update_tach};
+
+#[styled_component]
+fn App() -> Html {
     html! {
         <>
-            <h1>{ "Tachometer" }</h1>
-            <div>
-            <Tachometer width={500} height={400} />  
-            </div>
-            <Poll />
-       </>
+            <Global css={css!(r#"
+               html, body {
+                   background-image: url("img/gettyimages-472321657-612x612.jpg");
+               }
+               nav, aside {
+                   background-color: white;
+                   padding: 1%;
+               }
+
+               nav {
+                   height: 50px;
+                   background-color: #6699cc;
+                   display: flex;
+                   margin-bottom: 10px;
+               }
+
+               aside {
+                   width: 30%;
+                   flex: 1;
+                   padding-left: 10px;
+                   margin-left: 10px;
+                   float: right;
+                   background-color: #6699cc;
+               }
+            "#)} />
+
+            <nav>
+                <p>{ "Scan" }</p>
+            </nav>
+            <aside>
+                <h2>{ "Devices" }</h2>
+            </aside>
+            <Place />
+        </>
     }
 }
 
-#[function_component(Periodic)]
-fn periodic() -> Html {
-    let counter = use_state(|| 1);
 
-    {
-        let num = counter.clone();
-	    use_interval(move || {
-            update_tach(format!("{}", *num));
-	        if *num >= 100 {
-	            num.set(1);
-	        }
-	        else {
-                num.set(*num + 1);
-	        }
-	        info!("interval {}", *num);
-   	    }, 1000);
-    }
+#[function_component(Place)]
+fn placel() -> Html {
+    let window = web_sys::window().unwrap();
 
-    html! {
-        <div></div>
+    let cb = Closure::<dyn FnMut(_)>::new(move |e: web_sys::MouseEvent| {
+        info!("x,y: {},{}", e.offset_x(), e.offset_y());
+
+        let svg = match new_gauge("g1", e.offset_x(), e.offset_y(), 100) {
+            Ok(s) => s,
+            Err(js) => {
+                warn!("new_gauge {:?}", js);
+                return;
+            },
+        };
+
+        let document = web_sys::window().unwrap().document().unwrap();
+        document.body().unwrap().append_child(&svg).unwrap();
+    });
+
+    window.add_event_listener_with_callback("mousedown", cb.as_ref().unchecked_ref()).unwrap();
+
+    cb.forget();
+
+    html!{
+        <>
+            <p>{"place component"}</p>
+        </>
     }
 }
 
@@ -48,13 +90,11 @@ fn poll() -> Html {
                 .send().await.unwrap()
                 .text().await.unwrap();
 
-            update_tach(response);
+            update_tach("line", response);
         });
    	}, 1000);
 
-    html! {
-        <div></div>
-    }
+    html! {}
 }
 
 #[derive(Properties, PartialEq)]
@@ -92,38 +132,6 @@ fn tachometer(props: &TachProperties) -> Html {
     }
 }
 
-fn update_tach(text: String) {
-    let percent = match text.parse::<u32>() {
-        Ok(val) => val,
-        Err(e) => {
-            warn!("can't parse <{}>: {}", text, e);
-            return;
-        },
-    };
-    let (px, py) = plot_percent((percent as f64)/100.0);
-    let document = web_sys::window()
-        .unwrap()
-	.document()
-	.unwrap();
-    let pointer = document.get_element_by_id("line")
-	.unwrap();
-    pointer.set_attribute("x2", &format!("{}", px)).unwrap();
-    pointer.set_attribute("y2", &format!("{}", py)).unwrap();
-    info!("px: {}, py: {}", px, py);
-}
-
-const RADIUS: f64 = 150.0;
-const XORIGIN: f64 = 250.0;
-const YORIGIN: f64 = 200.0;
-
-fn plot_percent(percent: f64) -> (f64, f64) {
-    let radians = percent*PI;
-    let unitx = radians.cos();
-    let unity = radians.sin();
-
-    (XORIGIN - unitx * RADIUS, YORIGIN - unity * RADIUS)
-}
-        
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());
     

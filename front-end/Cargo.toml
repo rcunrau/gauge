@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 gloo-net = "0.6.0"
 log = "0.4.25"
+stylist = { version = "0.13.0", features = ["yew_integration"] }
+wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
 wasm-logger = "0.2.0"
 yew = { version = "0.21.0", features = ["csr"] }
@@ -15,6 +17,13 @@ yew-hooks = "0.3.3"
 version = "0.3.77"
 features = [
     "Document",
-    "Element",
     "Request",
+    "Element",
+    "EventTarget",
+    "SvgElement",
+    "HtmlElement",
+    "HtmlHeadElement",
+    "HtmlStyleElement",
+    "CssStyleDeclaration",
+    "Window",
 ]
