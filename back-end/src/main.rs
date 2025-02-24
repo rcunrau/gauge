@@ -1,7 +1,12 @@
+mod device;
+
+use device::scan;
+
 #[macro_use] extern crate rocket;
 
-use rocket::fs::{relative, FileServer};
 use std::sync::RwLock;
+
+use rocket::fs::{relative, FileServer};
 
 #[derive(Clone, Copy, Debug)]
 struct State {
@@ -29,7 +34,7 @@ fn rpm() -> String {
 #[launch]
 fn rocket() -> _ {
     rocket::build()
-        .mount("/data", routes![rpm])
+        .mount("/data", routes![rpm, scan])
         .mount("/img", FileServer::from(relative!("img")).rank(2))
         .mount("/", FileServer::from(relative!("dist")))
 }
