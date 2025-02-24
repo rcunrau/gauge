@@ -1,17 +1,81 @@
 mod gauge;
+mod device;
 
 use gloo_net::http::Request;
 use stylist::yew::{styled_component, Global};
 use yew::prelude::*;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::spawn_local;
 use yew_hooks::use_interval;
 
 use log::{info, warn};
 
 use gauge::{new_gauge, update_tach};
+use device::Device;
+
+#[derive(Clone, PartialEq)]
+enum State {
+    Init,
+    Placing,
+    Running,
+}
 
 #[styled_component]
 fn App() -> Html {
+    let state = use_state(|| State::Init);
+    let devices = use_state(Vec::new);
+
+    let scan = {
+        let devices = devices.clone();
+        let state = state.clone();
+        Callback::from(move |_| {
+            let devices = devices.clone();
+            let state = state.clone();
+            spawn_local(async move {
+                match Request::get("data/scan").send().await {
+                    Ok(response) => {
+                        let scanned: Vec<Device> = response.json().await.unwrap();
+                        devices.set(scanned);
+
+                        state.set(State::Placing);
+                    },
+                    Err(e) => warn!("Couldn't fetch users: {:?}", e),
+                }
+            });
+        })
+    };
+
+    let cb = {
+        let state = state.clone();
+        Closure::<dyn FnMut(_)>::new(move |e: web_sys::MouseEvent| {
+            let state = state.clone();
+
+            if *state != State::Placing {
+                return;
+            }
+
+            info!("x,y: {},{}", e.offset_x(), e.offset_y());
+
+            let svg = match new_gauge("g1", e.offset_x(), e.offset_y(), 150) {
+                Ok(s) => s,
+                Err(js) => {
+                    warn!("new_gauge {:?}", js);
+                    return;
+                },
+            };
+
+            let document = web_sys::window().unwrap().document().unwrap();
+            document.body().unwrap().append_child(&svg).unwrap();
+        })
+    };
+
+    let window = web_sys::window().unwrap();
+    window.add_event_listener_with_callback("click", cb.as_ref().unchecked_ref()).unwrap();
+
+    cb.forget();
+
+    let device_list = devices.clone().iter().map(|d| d.render()).collect::<Html>();
+        
     html! {
         <>
             <Global css={css!(r#"
@@ -31,53 +95,39 @@ fn App() -> Html {
                }
 
                aside {
-                   width: 30%;
+                   width: 10%;
                    flex: 1;
                    padding-left: 10px;
                    margin-left: 10px;
                    float: right;
                    background-color: #6699cc;
                }
+
+               .card {
+                   /* Add shadows to create the "card" effect */
+                   box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+                   transition: 0.3s;
+                   background-color: lightblue;
+               }
+
+               /* On mouse-over, add a deeper shadow */
+               .card:hover {
+                   box-shadow: 0 8px 16px 0 rgba(0,0,0,0.2);
+               }
+
+               /* Add some padding inside the card container */
+               .container {
+                   padding: 2px 16px;
+               }
             "#)} />
 
             <nav>
-                <p>{ "Scan" }</p>
+            <button onclick={scan}>{ "Scan" }</button>
             </nav>
             <aside>
                 <h2>{ "Devices" }</h2>
+                { device_list }
             </aside>
-            <Place />
-        </>
-    }
-}
-
-
-#[function_component(Place)]
-fn placel() -> Html {
-    let window = web_sys::window().unwrap();
-
-    let cb = Closure::<dyn FnMut(_)>::new(move |e: web_sys::MouseEvent| {
-        info!("x,y: {},{}", e.offset_x(), e.offset_y());
-
-        let svg = match new_gauge("g1", e.offset_x(), e.offset_y(), 100) {
-            Ok(s) => s,
-            Err(js) => {
-                warn!("new_gauge {:?}", js);
-                return;
-            },
-        };
-
-        let document = web_sys::window().unwrap().document().unwrap();
-        document.body().unwrap().append_child(&svg).unwrap();
-    });
-
-    window.add_event_listener_with_callback("mousedown", cb.as_ref().unchecked_ref()).unwrap();
-
-    cb.forget();
-
-    html!{
-        <>
-            <p>{"place component"}</p>
         </>
     }
 }
