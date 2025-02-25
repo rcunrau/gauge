@@ -12,6 +12,12 @@ lazy_static! {
              Device::new("Catalyst", Product::T1500),
              Device::new("Output", Product::Kraken),
         ]);
+    static ref STATES: Mutex<Vec<TempState>> = Mutex::new(
+        vec![TempState { val: 40, step: 1, min: 10, max: 90 },
+             TempState { val: 50, step: 2, min: 40, max: 90 },
+             TempState { val: 75, step: 3, min: 50, max: 100 },
+             TempState { val: 50, step: 4, min: 25, max: 75 },
+        ]);
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -64,6 +70,42 @@ impl Device {
 #[get("/scan")]
 pub fn scan() -> Json<Vec<Device>> {
     let known_devices = REFINERY.lock().unwrap();
+
+    Json((*known_devices.clone()).to_vec())
+}
+
+#[derive(Clone, Copy, Debug)]
+struct TempState {
+    val: i32,
+    step: i32,
+    min: i32,
+    max: i32,
+}
+
+impl TempState {
+    fn update(&mut self) -> i32 {
+        if self.val >= self.max {
+            self.val = self.max;
+            self.step = -self.step;
+        }
+        else if self.val <= self.min {
+            self.val = self.min;
+            self.step = -self.step;
+        }
+        self.val += self.step;
+
+        self.val
+    }
+}
+
+#[get("/temp")]
+pub fn temp() -> Json<Vec<Device>> {
+    let mut known_devices = REFINERY.lock().unwrap();
+    let mut states = STATES.lock().unwrap();
+
+    for (i, device) in known_devices.iter_mut().enumerate() {
+        device.temp = states[i].update();
+    }
 
     Json((*known_devices.clone()).to_vec())
 }

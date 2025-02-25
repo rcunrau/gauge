@@ -18,12 +18,14 @@ yew-hooks = "0.3.3"
 [dependencies.web-sys]
 version = "0.3.77"
 features = [
+    "Node",
     "Document",
     "Request",
     "Element",
     "EventTarget",
     "SvgElement",
     "HtmlElement",
+    "HtmlCanvasElement",
     "HtmlHeadElement",
     "HtmlStyleElement",
     "CssStyleDeclaration",

@@ -10,15 +10,8 @@ use yew_hooks::use_interval;
 
 use log::{info, warn};
 
-use gauge::{new_gauge, update_tach};
-use device::Device;
-
-#[derive(Clone, PartialEq)]
-enum State {
-    Init,
-    Placing,
-    Running,
-}
+use gauge::{new_gauge, update_gauge, GAUGE_SIZE};
+use device::{Device, State};
 
 #[styled_component]
 fn App() -> Html {
@@ -26,8 +19,8 @@ fn App() -> Html {
     let devices = use_state(Vec::new);
 
     let scan = {
-        let devices = devices.clone();
         let state = state.clone();
+        let devices = devices.clone();
         Callback::from(move |_| {
             let devices = devices.clone();
             let state = state.clone();
@@ -35,9 +28,8 @@ fn App() -> Html {
                 match Request::get("data/scan").send().await {
                     Ok(response) => {
                         let scanned: Vec<Device> = response.json().await.unwrap();
-                        devices.set(scanned);
-
                         state.set(State::Placing);
+                        devices.set(scanned);
                     },
                     Err(e) => warn!("Couldn't fetch users: {:?}", e),
                 }
@@ -47,31 +39,42 @@ fn App() -> Html {
 
     let cb = {
         let state = state.clone();
+        let devices = devices.clone();
         Closure::<dyn FnMut(_)>::new(move |e: web_sys::MouseEvent| {
-            let state = state.clone();
-
             if *state != State::Placing {
                 return;
             }
 
             info!("x,y: {},{}", e.offset_x(), e.offset_y());
 
-            let svg = match new_gauge("g1", e.offset_x(), e.offset_y(), 150) {
-                Ok(s) => s,
-                Err(js) => {
-                    warn!("new_gauge {:?}", js);
-                    return;
-                },
-            };
-
             let document = web_sys::window().unwrap().document().unwrap();
-            document.body().unwrap().append_child(&svg).unwrap();
+            for device in devices.iter() {
+                match document.get_element_by_id(&device.name) {
+                    Some(_) => continue,
+                    None => match new_gauge(&device.name, e.offset_x(), e.offset_y(), GAUGE_SIZE) {
+                        Ok(svg) => {
+                            document.body().unwrap().append_child(&svg).unwrap();
+                            return;
+                        }
+                        Err(js) => {
+                                warn!("new_gauge {:?}", js);
+                                state.set(State::Running);  // Don't try to place any more
+                                return;
+                        },
+                    },
+                }
+            }
+
+            info!("moving to state running!");
+            state.set(State::Running);  // All devices placed
         })
     };
 
     let window = web_sys::window().unwrap();
     window.add_event_listener_with_callback("click", cb.as_ref().unchecked_ref()).unwrap();
 
+    info!("window w: {:?}, h: {:?}", window.inner_width().unwrap().as_f64(),
+          window.inner_height().unwrap().as_f64());
     cb.forget();
 
     let device_list = devices.clone().iter().map(|d| d.render()).collect::<Html>();
@@ -122,8 +125,10 @@ fn App() -> Html {
             "#)} />
 
             <nav>
-            <button onclick={scan}>{ "Scan" }</button>
+                <button onclick={scan}>{ "Scan" }</button>
+                { state.clone().render() }
             </nav>
+            <Poll />
             <aside>
                 <h2>{ "Devices" }</h2>
                 { device_list }
@@ -136,50 +141,20 @@ fn App() -> Html {
 fn poll() -> Html {
 	use_interval(move || {
         wasm_bindgen_futures::spawn_local(async move {
-            let response = Request::get("data/rpm")
-                .send().await.unwrap()
-                .text().await.unwrap();
+            match Request::get("data/temp").send().await {
+                Ok(response) => {
+                    let temps: Vec<Device> = response.json().await.unwrap();
 
-            update_tach("line", response);
+                    for dev in temps {
+                        update_gauge(&dev.name, &dev.temp.to_string());
+                    }
+                },
+                Err(e) => warn!("update failed: {}", e),
+            };
         });
-   	}, 1000);
+    }, 400);
 
     html! {}
-}
-
-#[derive(Properties, PartialEq)]
-struct TachProperties {
-    width: u32,
-    height: u32,
-}
-
-#[function_component(Tachometer)]
-fn tachometer(props: &TachProperties) -> Html {
-    let w = format!("{}", props.width);
-    let h = format!("{}", props.height);
-    let halfw = format!("{}", props.width/2);
-    let halfh = format!("{}", props.height/2);
-    let thirdh = format!("{}", props.height/3);
-    html! {
-        <svg width={w.clone()} height={h.clone()} xmlns="http://www.w3.org/2000/svg">
-            <defs>
-                <@{"clipPath"} id="cut-bottom">
-                    <rect x="0" y="0" width={w.clone()} height={halfh.clone()} />
-                </@>
-                <marker id="arrow" markerWidth="10" markerHeight="10"
-                    refX="5" refY="5" orient="auto">
-                    <path d="M 0 0 L 10 5 L 0 10 z" fill="black" />
-                </marker>
-            </defs>
-            <circle cx={halfw.clone()} cy={halfh.clone()} r={halfh.clone()}
-                fill="red" clip-path="url(#cut-bottom)" />
-            <circle cx={halfw.clone()} cy={halfh.clone()} r={thirdh.clone()}
-                fill="yellow" clip-path="url(#cut-bottom)" />
-            <line id="line" x1={halfw.clone()} y1={halfh.clone()} x2={halfw.clone()} y2="60" stroke="black" stroke-width="5"
-                marker-end="url(#arrow)" />
-            { "Sorry, your browser does not support inline SVG." }
-        </svg>
-    }
 }
 
 fn main() {

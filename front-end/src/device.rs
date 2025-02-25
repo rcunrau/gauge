@@ -29,9 +29,9 @@ pub enum DeviceMode {
 
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Device {
-    name: String,
+    pub name: String,
     model: Product,
-    temp: i32,
+    pub temp: i32,
     mode: DeviceMode,
 }
 
@@ -50,11 +50,36 @@ impl Device {
             <div class="card">
                 <div class="container">
                     <h4 align="center">{ &self.name }</h4>
-                    <p>{ format!("Temp: {}", self.temp) }</p>
                     <p>{ "Mode: Auto" }</p>
                     <p align="center">{ format!("({})", self.model) }</p>
                 </div>
             </div>
         }
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub enum State {
+    Init,
+    Placing,
+    Running,
+}
+
+impl State {
+    pub fn render(&self) -> Html {
+        html!{
+            <p><b>{"State:"}</b>{ format!("{}", self) }</p>
+        }
+    }
+}
+
+impl fmt::Display for State {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let s = match self {
+            State::Init => "Initializing",
+            State::Placing => "Placing Devices",
+            State::Running => "Running",
+        };
+        write!(f, "{}", s)
     }
 }

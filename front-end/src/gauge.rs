@@ -4,6 +4,8 @@ use web_sys::SvgElement;
 use log::{info, warn};
 use std::f64::consts::PI;
 
+pub static GAUGE_SIZE: u32 = 150;
+
 pub fn new_gauge(name: &str, x: i32, y: i32, size: u32) -> Result<SvgElement, JsValue> {
     let document = web_sys::window().unwrap().document().unwrap();
     let svg = document.create_element_ns(Some("http://www.w3.org/2000/svg"), "svg")
@@ -16,7 +18,6 @@ pub fn new_gauge(name: &str, x: i32, y: i32, size: u32) -> Result<SvgElement, Js
     let third = format!("{}px", size/3);
     let left = x - (size as i32)/2;
     let top = y - (size as i32)/2;
-    // svg.style().set_property("border", "1px solid black")?;
     svg.style().set_property("position", "absolute")?;
     svg.style().set_property("left", &left.to_string())?;
     svg.style().set_property("top", &top.to_string())?;
@@ -66,10 +67,26 @@ pub fn new_gauge(name: &str, x: i32, y: i32, size: u32) -> Result<SvgElement, Js
     line.set_attribute("id", name)?;
     svg.append_child(&line)?;
 
+    info!("creating svg <{}>", name);
+    // Title
+    let text = document.create_element_ns(Some("http://www.w3.org/2000/svg"), "text")?;
+    let ty = size - size/3;
+    let fs = (0.2 * (size as f32)) as u32;
+    text.set_attribute("x", &half)?;
+    text.set_attribute("y", &ty.to_string())?;
+    text.set_attribute("fill", "black")?;
+    text.set_attribute("stroke", "black")?;
+    text.set_attribute("font-size", &fs.to_string())?;
+    text.set_attribute("text-anchor", "middle")?;
+
+    let node = text.dyn_ref::<web_sys::Node>().unwrap();
+    node.set_text_content(Some(name));
+    svg.append_child(&text)?;
+
     Ok(svg)
 }
 
-pub fn update_tach(name: &str, text: String) {
+pub fn update_gauge(name: &str, text: &str) {
     let percent = match text.parse::<u32>() {
         Ok(val) => val,
         Err(e) => {
@@ -77,7 +94,9 @@ pub fn update_tach(name: &str, text: String) {
             return;
         },
     };
-    let (px, py) = plot_percent(250.0, 200.0, 150.0, (percent as f64)/100.0);
+
+    let half = (GAUGE_SIZE as f64)/2.0;
+    let (px, py) = plot_percent(half, half, half*0.8, (percent as f64)/100.0);
 
     let document = web_sys::window().unwrap().document().unwrap();
     let pointer = match document.get_element_by_id(name) {
